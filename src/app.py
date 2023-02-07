@@ -2,16 +2,23 @@ import os
 from collections import deque
 from typing import List
 
-def chunk_data(file: str):
+def chunk_data(file: str, threads: int = None):
     """Equally split the given size of bytes into a lazy readable stream.
 
     :param: the file path
     """
     size = os.stat(file).st_size
+    cpu = os.cpu_count()
+
+    if not threads and not cpu:
+        raise Exception('Cannot determine number of threads')
+
+    if not threads and cpu:
+        threads = cpu
 
     with open(file) as f:
         piece = 0
-        offset = size//os.cpu_count()
+        offset = size//threads
         print(offset)
 
         while piece < size:
@@ -34,6 +41,9 @@ def split_file(file: str, directory: str = './.split') -> List[str]:
 
     if directory.endswith('/'):
         directory = directory[:-1]
+    
+    if not os.path.exists(directory):
+        os.mkdir(directory)
 
     filename = os.path.basename(file)
     files = []
