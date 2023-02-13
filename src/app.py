@@ -1,57 +1,28 @@
 import os
-from collections import deque
-from typing import List
+import threading
 
-def chunk_data(file: str, threads: int = None):
-    """Equally split the given size of bytes into a lazy readable stream.
+import utils
+from db import Database, Download
 
-    :param: the file path
-    """
-    size = os.stat(file).st_size
-    cpu = os.cpu_count()
 
-    if not threads and not cpu:
-        raise Exception('Cannot determine number of threads')
-
-    if not threads and cpu:
-        threads = cpu
-
+def init_thread(file, conf):
+    con = Database(**conf.db).create()
     with open(file) as f:
-        piece = 0
-        offset = size//threads
-        print(offset)
+        get = Download(conf.table, con)
+        for line in f.readlines():
+            url, word = line.split(',')
+            get.html(url, word)
+    con.close()
 
-        while piece < size:
-            data = f.readlines(offset)
-            if not data:
-                break
-            yield data
-            piece += offset
+threads = os.cpu_count()
+threads_list = []
+files = utils.split_file('./test.txt')
 
+for file in files:
+    threads_list.append(threading.Thread(
+        target=init_thread,
+        args=[file]
+    ))
 
-def split_file(file: str, directory: str = './.split') -> List[str]:
-    """Split file in equal parts and save in a directory
-
-    :param file: file to be split
-    :param directory: where the files will be saved, if the 
-        directory does not exists, then it will be 
-        created, defaults to './.split'.
-    :return: "The path of each file"
-    """
-
-    if directory.endswith('/'):
-        directory = directory[:-1]
-    
-    if not os.path.exists(directory):
-        os.mkdir(directory)
-
-    filename = os.path.basename(file)
-    files = []
-    count = 1
-    for chunk in chunk_data(file):
-        filepath = f'{directory}/{count}-{filename}'
-        with open(filepath, 'a') as f:
-            f.writelines(chunk)
-            files.append(filepath)
-            count += 1
-    return files
+for thread in threads_list:
+    thread.start()
