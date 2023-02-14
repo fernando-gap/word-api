@@ -19,14 +19,15 @@ class Download:
         self.table = table
 
     def html(self, url: str, word: str) -> str:
-        # req = requests.get(url)
-        req = 'hello+uashp;cdk;].x+.ahk;;h___'+word
+        req = requests.get(url, headers={
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0'
+        })
 
         with self.db.cursor() as cur:
             cur.execute(f"""
                 INSERT INTO {self.table} (site, word, html) 
                 VALUES (%s, %s, %s)
-                """, (url, word, req))
+                """, (url, word, req.text))
         
         Download.total += 1
         self.db.commit()
