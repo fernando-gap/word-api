@@ -6,19 +6,29 @@ import utils
 from db import Database, Download
 from fastapi import FastAPI, UploadFile
 
+
 app = FastAPI()
 threads = os.cpu_count()
 
 conf = {
     "db": {
-        "dbname": "",
-        "user": "",
-        "password": "",
-        "host": ""
+        "dbname": "postgres",
+        "user": "postgres",
+        "password": "adm",
+        "host": "172.17.0.2"
     },
-    "table": ""
+    "table": "word"
 }
 
+with Database(**conf['db']).create() as db:
+    with db.cursor() as cur:
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS WORDS (
+            word VARCHAR(50) PRIMARY KEY,
+            site VARCHAR NOT NULL,
+            html TEXT NOT NULL
+        )
+        """)
 
 @app.post("/file")
 def route_file(file: UploadFile):
