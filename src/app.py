@@ -1,9 +1,11 @@
 import os
 import threading
 from io import BytesIO
+from dotenv import load_dotenv
+load_dotenv()
 
-import utils
-from db import Database, Download
+import src.utils
+from src.db import Database, Download
 from fastapi import FastAPI, UploadFile
 
 
@@ -12,12 +14,12 @@ threads = os.cpu_count()
 
 conf = {
     "db": {
-        "dbname": "postgres",
-        "user": "postgres",
-        "password": "adm",
-        "host": "172.17.0.2"
+        "dbname": os.environ.get("DB_NAME"),
+        "user": os.environ.get("DB_USER"),
+        "password": os.environ.get("DB_PASSWORD"),
+        "host": os.environ.get("DB_HOST"),
     },
-    "table": "word"
+    "table": "words"
 }
 
 with Database(**conf['db']).create() as db:
@@ -36,7 +38,7 @@ def route_file(file: UploadFile):
         for line in file.file.readlines():
             f.write(line)
     
-    files = utils.split_file(f'/tmp/{file.filename}')
+    files = src.utils.split_file(f'/tmp/{file.filename}')
     threads_list = create_thread(files, conf)
 
     for thread in threads_list:
@@ -61,7 +63,12 @@ def init_thread(file, conf):
     with open(file) as f:
         get = Download(conf["table"], con)
         for line in f.readlines():
-            url, word = line.split(',')
-            get.html(url, word)
+            try:
+                url, word = line.split(',')
+                get.html(url, word)
+            except Exception as e:
+                pass # Ignore database errors
+
+        print(get.total)
     con.close()
 
