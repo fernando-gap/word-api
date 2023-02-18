@@ -67,7 +67,7 @@ def init_thread(file, conf):
                 url, word = line.split(',')
                 get.html(url, word)
             except Exception as e:
-                pass # Ignore database errors
+                print(e)
 
         print(get.total)
     con.close()
