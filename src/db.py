@@ -1,33 +1,68 @@
-import psycopg
-import requests
+from psycopg import AsyncConnection, Connection
+from aiohttp import ClientSession
+import asyncio
+
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 class Database:
-    def __init__(self, *, dbname: str, user: str, password: str, host: str):
+    def __init__(self, *,
+            dbname: str, user: str, password: str,
+            host: str):
+
         self.connection_string = f"dbname={dbname} user={user} password={password} host={host}"
 
-    def create(self, *args) -> psycopg.Connection:
-        """Create a postgres connection.
+    def create(self, *args) -> AsyncConnection:
+        """Create a postgres async. connection.
         """
-        return psycopg.connect(self.connection_string, *args)
+        return AsyncConnection.connect(self.connection_string, *args)
+    def create_sync(self, *args) -> Connection:
+        """Create a postgres sync. connection.
+        """
+        return Connection.connect(self.connection_string, *args)
+
 
 
 class Download:
     total = 0
 
-    def __init__(self, table: str, connection: psycopg.Connection):
+    def __init__(self,
+            table: str,
+            connection: AsyncConnection):
+
         self.db = connection
         self.table = table
 
-    def html(self, url: str, word: str) -> str:
-        req = requests.get(url, headers={
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0'
-        })
+    async def fetch(self,
+            url: str,
+            word: str,
+            session: ClientSession):
 
-        with self.db.cursor() as cur:
-            cur.execute(f"""
-                INSERT INTO {self.table} (site, word, html) 
+        async with session.get(url) as resp:
+            return await resp.text(), url, word
+
+    async def html(self,
+            file: str,
+            session: ClientSession) -> str:
+
+        tasks = []
+        with open(file) as f:
+            for line in f.readlines():
+                url, word = line.split(',')
+                task = asyncio.ensure_future(self.fetch(url, word.strip('\n'), session))
+                tasks.append(task)
+
+        response = await asyncio.gather(*tasks)
+
+        async with self.db.cursor() as cur:
+            await cur.executemany(f"""
+                INSERT INTO {self.table} (html, site, word)
                 VALUES (%s, %s, %s)
-                """, (url, word, req.text))
-        
-        Download.total += 1
-        self.db.commit()
+                ON CONFLICT DO NOTHING
+                """, response)
+
+        Download.total += len(tasks)
+        await self.db.commit()
+        response = []
+        tasks = []
